@@ -36,10 +36,32 @@ app.MapPost("/checkout", async (HttpContext context, ILogger<Program> logger) =>
 // Cannot query: "show me all failed payments for premium users with carts > $100"
 ```
 
-**Correct -- single wide event with everything:**
+**Correct -- enrich the request event via `IDiagnosticContext`:**
 
 ```csharp
-// Single wide event with everything (see wide-events.md for the full pattern)
+// Recommended: UseSerilogRequestLogging handles timing, status, method, path.
+// Just enrich the existing event with business context.
+app.MapPost("/checkout", async (HttpContext context, IDiagnosticContext diagnosticContext) =>
+{
+    var user = await GetUser(context.User);
+    diagnosticContext.Set("User", new { user.Id, user.Subscription });
+
+    var cart = await GetCart(user.Id);
+    diagnosticContext.Set("Cart", new { ItemCount = cart.Items.Count, TotalCents = cart.Total });
+
+    var payment = await ProcessPayment(cart);
+    diagnosticContext.Set("Payment", new { payment.Status, payment.OrderId });
+
+    return Results.Ok(new { payment.OrderId });
+});
+// Serilog emits ONE event at request completion with all enriched properties.
+// Queryable: WHERE Payment.Status = 'failed' AND User.Subscription = 'premium' AND Cart.TotalCents > 10000
+```
+
+If you need full control over the event shape (see `wide-events.md`), the manual dictionary approach achieves the same consolidation:
+
+```csharp
+// Full control alternative -- single wide event with everything
 var wideEvent = new Dictionary<string, object?>
 {
     ["Method"] = "POST",

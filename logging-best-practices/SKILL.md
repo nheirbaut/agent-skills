@@ -12,11 +12,11 @@ metadata:
 Version: 2.0.0
 
 ## Purpose
-
 This skill provides guidelines for effective logging in .NET applications. The recommended pattern for request-level logging is **wide events** (also called canonical log lines): emit one context-rich summary event per request per service, rather than scattering many small log calls throughout the handler.
 
-Wide events are the **preferred default**, not a strict rule. Long-running operations, streaming responses, background jobs with multiple phases, and retry loops may legitimately need additional step-level events for visibility into progress. Prefer one summary event; add step events only when a single end-of-request event would leave you blind.
+For HTTP workloads, the **recommended implementation** is `UseSerilogRequestLogging()` + `IDiagnosticContext` — it produces a wide event with minimal handler code. If your application uses OpenTelemetry, enriching the active `Activity` span via `Activity.SetTag()` is a modern alternative that feeds both traces and logs. A manual `Dictionary<string, object?>` approach gives full control when needed.
 
+Wide events are the **preferred default**, not a strict rule. Long-running operations, streaming responses, background jobs with multiple phases, and retry loops may legitimately need additional step-level events for visibility into progress. Prefer one summary event; add step events only when a single end-of-request event would leave you blind.
 The stack covered by these guidelines: `ILogger<T>` via `Microsoft.Extensions.Logging`, **Serilog** as the logging provider, ASP.NET Core middleware, and **OpenTelemetry / W3C Trace Context** for distributed correlation.
 
 ## When to Apply
@@ -31,8 +31,65 @@ Apply these guidelines when:
 ## Core Principles
 
 ### 1. Wide Events (CRITICAL)
+Emit **one context-rich event per request per service**. Choose the implementation tier that fits your stack:
 
-Emit **one context-rich event per request per service**. Build the event throughout the request lifecycle, then emit it in a `finally` block so it is always emitted — even when the request throws.
+| Approach | Boilerplate | Provider | Best For |
+|----------|-------------|----------|----------|
+| `UseSerilogRequestLogging` + `IDiagnosticContext` | ~4 lines/handler | Serilog only | Most HTTP workloads (recommended) |
+| `Activity.SetTag()` (OpenTelemetry spans) | ~4 lines/handler | Any OTel-compatible | Apps already using OTel tracing |
+| Manual `Dictionary<string, object?>` | ~40 lines/handler | Any `ILogger` | Full control over event shape |
+
+#### Recommended: `UseSerilogRequestLogging` + `IDiagnosticContext`
+
+Serilog's built-in request logging middleware automatically captures timing, status code, method, and path. Inject `IDiagnosticContext` into handlers to attach business context to the same summary event — no try/catch/finally boilerplate needed.
+
+```csharp
+// Program.cs — configure once
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("RequestId", httpContext.TraceIdentifier);
+    };
+});
+
+// Handler — just enrich the existing event
+app.MapPost("/checkout", async (HttpContext context, IDiagnosticContext diagnosticContext) =>
+{
+    var user = await GetUser(context.User);
+    diagnosticContext.Set("User", new { user.Id, user.Subscription, user.Trial });
+
+    var cart = await GetCart(user.Id);
+    diagnosticContext.Set("Cart", new { TotalCents = cart.Total, ItemCount = cart.Items.Count });
+
+    return Results.Ok(new { Success = true });
+});
+```
+
+Serilog emits a single wide event at request completion with all enriched properties, timing, status code, method, and path included automatically.
+
+#### Alternative: OpenTelemetry Span Enrichment
+
+If your application uses OpenTelemetry, enrich the active span instead. Tags on the span flow to both traces and structured logs (via the OTel log bridge), giving you wide-event semantics without a Serilog dependency.
+
+```csharp
+app.MapPost("/checkout", async (HttpContext context) =>
+{
+    var user = await GetUser(context.User);
+    Activity.Current?.SetTag("user.id", user.Id);
+    Activity.Current?.SetTag("user.subscription", user.Subscription);
+
+    var cart = await GetCart(user.Id);
+    Activity.Current?.SetTag("cart.total_cents", cart.Total);
+    Activity.Current?.SetTag("cart.item_count", cart.Items.Count);
+
+    return Results.Ok(new { Success = true });
+});
+```
+
+#### Full Control: Manual Dictionary
+
+When you need full control over the event shape, work with any `ILogger` provider, or need custom emission logic (e.g., different log levels per outcome), build the event manually. Consider using a typed `RequestWideEvent` class (see `rules/wide-events.md`) instead of a raw dictionary for compile-time safety.
 
 ```csharp
 app.MapPost("/checkout", async (HttpContext context, ILogger<Program> logger) =>
@@ -51,11 +108,8 @@ app.MapPost("/checkout", async (HttpContext context, ILogger<Program> logger) =>
     {
         var user = await GetUser(context.User);
         wideEvent["User"] = new { user.Id, user.Subscription, user.Trial };
-
         var cart = await GetCart(user.Id);
         wideEvent["Cart"] = new { TotalCents = cart.Total, ItemCount = cart.Items.Count };
-
-        wideEvent["StatusCode"] = 200;
         wideEvent["Outcome"] = "success";
         return Results.Ok(new { Success = true });
     }
@@ -64,8 +118,6 @@ app.MapPost("/checkout", async (HttpContext context, ILogger<Program> logger) =>
         wideEvent["StatusCode"] = 500;
         wideEvent["Outcome"] = "error";
         wideEvent["Error"] = new { Type = ex.GetType().Name, ex.Message };
-
-        // Pass the exception to LogError to preserve the full stack trace.
         // The structured Error property is for querying; the exception parameter
         // is what carries the stack trace to the sink.
         logger.LogError(ex, "Request failed {@WideEvent}", wideEvent);
@@ -75,8 +127,6 @@ app.MapPost("/checkout", async (HttpContext context, ILogger<Program> logger) =>
     {
         wideEvent["DurationMs"] = Stopwatch.GetElapsedTime(startTime).TotalMilliseconds;
         wideEvent["Timestamp"] = DateTimeOffset.UtcNow;
-
-        // Only emit at Information in the finally block for non-error outcomes.
         // Error cases are already logged with LogError (and the exception) in catch.
         var outcome = wideEvent.GetValueOrDefault("Outcome")?.ToString();
         if (outcome != "error")
@@ -86,7 +136,6 @@ app.MapPost("/checkout", async (HttpContext context, ILogger<Program> logger) =>
     }
 });
 ```
-
 Note: `{@WideEvent}` uses Serilog's destructuring operator. With other providers, use `BeginScope` or `LogContext.PushProperty` instead. See `rules/wide-events.md` and `rules/structure.md` for details.
 
 ### 2. High Cardinality & Dimensionality (CRITICAL)
@@ -131,11 +180,14 @@ Do not simplify to "only Information and Error." Warning is the right level for 
 Use `ILogger<T>` resolved through dependency injection everywhere. Configure Serilog once in `Program.cs` with enrichers for environment context. Never instantiate loggers manually and never use `Console.WriteLine` for operational logging (the only acceptable exception is startup before the logging pipeline is ready).
 
 ### 7. Request Logging (HIGH)
+Choose the approach that matches your stack and control requirements:
 
-Two approaches — pick based on your needs:
-
-- **`app.UseSerilogRequestLogging()` + `IDiagnosticContext`**: Simpler to set up. Automatically captures timing, status, method, and path. Inject `IDiagnosticContext` into handlers to attach business context to the same summary event. Serilog-specific.
-- **Custom `WideEventMiddleware`**: Full control over event shape. Works with any `ILogger` provider. Use correct log levels per status code: `LogError` for 5xx and exceptions, `LogWarning` for 4xx, `LogInformation` for 2xx/3xx.
+| Approach | When to Use |
+|----------|-------------|
+| `UseSerilogRequestLogging` + `IDiagnosticContext` | Default for HTTP workloads with Serilog. Automatic timing, status, method, path. Minimal handler code. |
+| `Activity.SetTag()` (OpenTelemetry) | Application already instrumented with OTel. Tags flow to traces and logs. |
+| Custom `WideEventMiddleware` with dictionary | Need full control over event shape, custom log levels per status code, or provider independence. |
+| Custom `WideEventMiddleware` with typed class | Same as above, plus compile-time schema safety for well-known event shapes. |
 
 ### 8. High-Performance Logging (HIGH)
 
@@ -190,7 +242,7 @@ Business correlation IDs (e.g., `OrderId` that spans multiple traces over days) 
 
 ### Wide Events (`rules/wide-events.md`)
 
-One summary event per service hop, emitted in a `finally` block. Exception handling: always pass the exception object as the first argument to `LogError` to preserve the stack trace — the structured `Error` property on the event is for querying, not a substitute. Correlation via `Activity.Current?.TraceId` (W3C Trace Context, automatic) — not manual header propagation. Business correlation IDs (e.g., `OrderId`) are a separate concept that spans multiple traces. Emit wide events at the appropriate level in the finally block (skip re-emitting error cases already logged with `LogError` in catch, or emit at `Information` as a summary-only record). Step-level events are legitimate for long-running operations, streaming, and retry loops — they supplement, not replace, the summary. Typed `RequestWideEvent` classes are an optional alternative to `Dictionary<string, object?>`. Configure Serilog destructuring depth/length/collection limits as safety nets. `UseSerilogRequestLogging` + `IDiagnosticContext` is a convenient built-in alternative for Serilog users.
+One summary event per service hop. **Recommended approach**: `UseSerilogRequestLogging()` + `IDiagnosticContext` for HTTP workloads — automatic timing, status, method, path with minimal handler code. **OpenTelemetry alternative**: enrich the active `Activity` span via `SetTag()` when OTel is already in use. **Full control**: manual dictionary or typed `RequestWideEvent` class with try/catch/finally for custom emission logic. Exception handling: always pass the exception object as the first argument to `LogError` to preserve the stack trace — the structured `Error` property on the event is for querying, not a substitute. Correlation via `Activity.Current?.TraceId` (W3C Trace Context, automatic) — not manual header propagation. Business correlation IDs (e.g., `OrderId`) are a separate concept that spans multiple traces. Step-level events are legitimate for long-running operations, streaming, and retry loops — they supplement, not replace, the summary. Configure Serilog destructuring depth/length/collection limits as safety nets.
 
 ### Context (`rules/context.md`)
 

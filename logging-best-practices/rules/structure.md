@@ -92,7 +92,7 @@ _logger.LogCritical("Connection pool exhausted, service degraded");
 
 ### Use Serilog Request Logging for HTTP Workloads
 
-For ASP.NET Core HTTP applications, prefer Serilog's built-in `UseSerilogRequestLogging()` over custom middleware. It produces a single summary event per request with timing, status code, and path - exactly the "one event per request" pattern.
+For ASP.NET Core HTTP applications, use Serilog's `UseSerilogRequestLogging()` as your default request logging approach. It produces a single summary event per request with timing, status code, and path - exactly the "one event per request" pattern.
 
 ```csharp
 // Program.cs
@@ -150,7 +150,16 @@ app.MapPost("/checkout", async (
 // Serilog emits ONE event at request completion with all enriched properties
 ```
 
-**Alternative: Custom middleware for full control**
+**Choose the right approach:**
+
+| Use case | Approach |
+|----------|----------|
+| Standard HTTP API with Serilog | `UseSerilogRequestLogging` + `IDiagnosticContext` |
+| Need nested properties or custom event shape | Custom `WideEventMiddleware` |
+| Non-Serilog provider | Custom middleware with `BeginScope` |
+| Already using OpenTelemetry tracing | Enrich spans via `Activity.SetTag` |
+
+**Full Control Alternative: Custom middleware for full control**
 
 If you need the dictionary-based wide event pattern (e.g., deeply nested properties, non-Serilog providers, or full control over the event shape), use custom middleware. Note the correct log level for error cases:
 
