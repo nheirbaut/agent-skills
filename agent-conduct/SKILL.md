@@ -125,6 +125,8 @@ After making file edits, stop and let the user review the changes. Committing an
 
 "Commit and push" counts as explicit permission for both. But "make the changes" does not imply "commit them". When in doubt, stop after editing and report what changed.
 
+**Do not add agent co-authorship, attribution footers, or branding to commits.** Commits are authored by the user. Do not append `Co-authored-by` trailers, promotional links, or agent identity markers to commit messages unless the user explicitly requests them.
+
 ---
 
 ## Summary
