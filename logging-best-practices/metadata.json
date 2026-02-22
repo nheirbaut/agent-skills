@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "organization": "nheirbaut",
+  "date": "2026-02-22",
+  "abstract": "Logging best practices for .NET applications using structured wide events (canonical log lines), ILogger<T>, Serilog, ASP.NET Core middleware, OpenTelemetry/W3C Trace Context correlation, LoggerMessage source generators, and PII/GDPR-aware context enrichment.",
+  "references": [
+    "https://loggingsucks.com",
+    "https://boristane.com/blog/observability-wide-events-101/",
+    "https://stripe.com/blog/canonical-log-lines",
+    "https://benfoster.io/blog/serilog-best-practices/",
+    "https://learn.microsoft.com/en-us/aspnet/core/fundamentals/logging/",
+    "https://learn.microsoft.com/en-us/dotnet/core/extensions/high-performance-logging",
+    "https://learn.microsoft.com/en-us/dotnet/core/diagnostics/distributed-tracing",
+    "https://opentelemetry.io/docs/languages/dotnet/"
+  ]
+}
