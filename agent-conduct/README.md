@@ -8,6 +8,8 @@ An OpenCode skill for predictable, trustworthy agent behavior.
 - **Edge case classification** — handling ambiguous phrasing like "Make sure X is correct" or "Can you update X?"
 - **Transparency on uncertainty** — state interpretation, ask for clarification, default to less action
 - **Scope discipline** — do only what was asked, report unrelated findings separately, propose before expanding
+- **System safety** — never install, update, or remove software without explicit permission
+- **Work items** — describe the problem and desired outcome, not the implementation
 
 ## Files
 
