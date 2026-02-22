@@ -6,7 +6,7 @@ My preferred [OpenCode](https://opencode.ai) skills — curated for .NET develop
 
 | Skill | Description |
 |-------|-------------|
-| [logging-best-practices](logging-best-practices/) | Structured logging for .NET using wide events, `ILogger<T>`, Serilog, and OpenTelemetry correlation |
+| [logging-best-practices](logging-best-practices/) | Structured logging for .NET using `UseSerilogRequestLogging`/`IDiagnosticContext`, wide events, `ILogger<T>`, Serilog, and OpenTelemetry correlation |
 | [solid](solid/) | SOLID principles, TDD, clean code, design patterns, and professional software craftsmanship |
 
 ## Setup
