@@ -8,6 +8,7 @@ My preferred [OpenCode](https://opencode.ai) skills — curated for .NET develop
 |-------|-------------|
 | [logging-best-practices](logging-best-practices/) | Structured logging for .NET using `UseSerilogRequestLogging`/`IDiagnosticContext`, wide events, `ILogger<T>`, Serilog, and OpenTelemetry correlation |
 | [solid](solid/) | SOLID principles, TDD, clean code, design patterns, and professional software craftsmanship |
+| [agent-conduct](agent-conduct/) | Agent behavioral rules — questions get answers (not actions), scope discipline, and uncertainty handling |
 
 ## Setup
 
@@ -22,6 +23,7 @@ git clone https://github.com/nheirbaut/agent-skills.git
 # Copy skills to OpenCode's global skills directory
 cp -r agent-skills/logging-best-practices ~/.config/opencode/skills/
 cp -r agent-skills/solid ~/.config/opencode/skills/
+cp -r agent-skills/agent-conduct ~/.config/opencode/skills/
 ```
 
 ### Option 2 — Project-level install
@@ -32,6 +34,7 @@ Place skill directories inside your project's `.opencode/skills/` folder:
 mkdir -p .opencode/skills
 cp -r /path/to/agent-skills/logging-best-practices .opencode/skills/
 cp -r /path/to/agent-skills/solid .opencode/skills/
+cp -r /path/to/agent-skills/agent-conduct .opencode/skills/
 ```
 
 ### Option 3 — Reference via `opencode.json`
@@ -41,7 +44,7 @@ Point OpenCode to this repo's location on disk by adding a `skills.paths` entry 
 ```jsonc
 {
   "skills": {
-    "paths": ["/path/to/agent-skills/logging-best-practices", "/path/to/agent-skills/solid"]
+    "paths": ["/path/to/agent-skills/logging-best-practices", "/path/to/agent-skills/solid", "/path/to/agent-skills/agent-conduct"]
   }
 }
 ```
@@ -56,3 +59,4 @@ Skills are loaded **on demand** — the agent sees which skills are available an
 
 - **logging-best-practices** — MIT. Adapted from [boristane/agent-skills](https://github.com/boristane/agent-skills); original concepts by Boris Tane.
 - **solid** — By [ramziddin](https://github.com/ramziddin/solid-skills).
+- **agent-conduct** — MIT. By [nheirbaut](https://github.com/nheirbaut).
