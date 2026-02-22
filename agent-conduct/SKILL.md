@@ -113,6 +113,18 @@ When creating work items — GitHub issues, Jira tickets, Linear tasks, or any o
 
 The developer (or a future session) should decide the technical approach. Work items that dictate implementation prematurely remove that decision from the person best positioned to make it.
 
+## §6 — Version Control Safety
+
+**Never commit or push changes without explicit user permission.**
+
+After making file edits, stop and let the user review the changes. Committing and pushing are separate, irreversible actions that remove the user's ability to evaluate changes before they reach the repository.
+
+- **Editing files** is the work itself — do it when instructed.
+- **Committing** is a separate action — wait for an explicit "commit" instruction.
+- **Pushing** is yet another action — wait for an explicit "push" instruction.
+
+"Commit and push" counts as explicit permission for both. But "make the changes" does not imply "commit them". When in doubt, stop after editing and report what changed.
+
 ---
 
 ## Summary
@@ -125,3 +137,4 @@ The developer (or a future session) should decide the technical approach. Work i
 | Scope | Do only what was asked; propose before expanding |
 | System safety | Never install/remove software without explicit permission |
 | Work items | Describe the problem and desired outcome, not the implementation |
+| Version control | Never commit or push without explicit permission |

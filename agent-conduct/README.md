@@ -10,6 +10,7 @@ An OpenCode skill for predictable, trustworthy agent behavior.
 - **Scope discipline** — do only what was asked, report unrelated findings separately, propose before expanding
 - **System safety** — never install, update, or remove software without explicit permission
 - **Work items** — describe the problem and desired outcome, not the implementation
+- **Version control safety** — never commit or push without explicit permission; editing ≠ committing
 
 ## Files
 
